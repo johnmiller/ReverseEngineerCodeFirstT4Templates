@@ -11,7 +11,7 @@ using <#= code.EscapeNamespace(efHost.MappingNamespace) #>;
 
 namespace <#= code.EscapeNamespace(efHost.Namespace) #>
 {
-    public partial class <#= efHost.EntityContainer.Name #> : DbContext
+    public class <#= efHost.EntityContainer.Name #> : DbContext
     {
         static <#= efHost.EntityContainer.Name #>()
         {

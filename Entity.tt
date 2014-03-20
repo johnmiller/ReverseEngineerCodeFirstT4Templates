@@ -10,7 +10,7 @@ using System.Collections.Generic;
 
 namespace <#= code.EscapeNamespace(efHost.Namespace) #>
 {
-    public partial class <#= efHost.EntityType.Name #>
+    public class <#= efHost.EntityType.Name #>
     {
 <#
     var collectionNavigations = efHost.EntityType.NavigationProperties.Where(
@@ -27,7 +27,7 @@ namespace <#= code.EscapeNamespace(efHost.Namespace) #>
         foreach (var navProperty in collectionNavigations)
         {
 #>
-            this.<#= code.Escape(navProperty) #> = new List<<#= code.Escape(navProperty.ToEndMember.GetEntityType()) #>>();
+            <#= code.Escape(navProperty) #> = new List<<#= code.Escape(navProperty.ToEndMember.GetEntityType()) #>>();
 <#
         }
 #>

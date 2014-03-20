@@ -34,35 +34,53 @@ namespace <#= code.EscapeNamespace(efHost.Namespace) #>
     {
         public <#= efHost.EntityType.Name #>Map()
         {
-            // Primary Key
 <#
     if (efHost.EntityType.KeyMembers.Count() == 1)
     {
 #>
-            this.HasKey(t => t.<#= efHost.EntityType.KeyMembers.Single().Name #>);
+            HasKey(t => t.<#= efHost.EntityType.KeyMembers.Single().Name #>);
 <#
     }
     else
     {
 #>
-            this.HasKey(t => new { <#= string.Join(", ", efHost.EntityType.KeyMembers.Select(m => "t." + m.Name)) #> });
+            HasKey(t => new { <#= string.Join(", ", efHost.EntityType.KeyMembers.Select(m => "t." + m.Name)) #> });
 <#
     }
-#>
 
-            // Properties
-<#
-    foreach (var prop in efHost.EntityType.Properties)
+	var tableSet = efHost.TableSet;
+    var tableName = (string)tableSet.MetadataProperties["Table"].Value
+        ?? tableSet.Name;
+    var schemaName = (string)tableSet.MetadataProperties["Schema"].Value;
+
+    if (schemaName == "dbo" || string.IsNullOrWhiteSpace(schemaName))
     {
-        var type = (PrimitiveType)prop.TypeUsage.EdmType;
-        var isKey = efHost.EntityType.KeyMembers.Contains(prop);
-        var storeProp = efHost.PropertyToColumnMappings[prop];
+#>
+            ToTable("<#= tableName #>");
+
+<#
+    }
+    else
+    {
+#>
+            ToTable("<#= tableName #>", "<#= schemaName #>");
+
+<#
+    }
+
+    foreach (var property in efHost.EntityType.Properties)
+    {
+        var type = (PrimitiveType)property.TypeUsage.EdmType;
+        var isKey = efHost.EntityType.KeyMembers.Contains(property);
+        var storeProp = efHost.PropertyToColumnMappings[property];
         var sgpFacet = storeProp.TypeUsage.Facets.SingleOrDefault(f => f.Name == "StoreGeneratedPattern");
         var storeGeneratedPattern = sgpFacet == null
             ? StoreGeneratedPattern.None
             : (StoreGeneratedPattern)sgpFacet.Value;
             
         var configLines = new List<string>();
+		
+		configLines.Add(string.Format(".HasColumnName(\"{0}\")", efHost.PropertyToColumnMappings[property].Name));
              
         if (type.ClrEquivalentType == typeof(int)
             || type.ClrEquivalentType == typeof(decimal)
@@ -82,24 +100,24 @@ namespace <#= code.EscapeNamespace(efHost.Namespace) #>
         if (type.ClrEquivalentType == typeof(string)
             || type.ClrEquivalentType == typeof(byte[]))
         {
-            if (!prop.Nullable)
+            if (!property.Nullable)
             {
                 configLines.Add(".IsRequired()");
             }
                 
-            var unicodeFacet = (Facet)prop.TypeUsage.Facets.SingleOrDefault(f => f.Name == "IsUnicode");
+            var unicodeFacet = (Facet)property.TypeUsage.Facets.SingleOrDefault(f => f.Name == "IsUnicode");
             if(unicodeFacet != null && !(bool)unicodeFacet.Value)
             {
                 configLines.Add(".IsUnicode(false)");
             }
                 
-            var fixedLengthFacet = (Facet)prop.TypeUsage.Facets.SingleOrDefault(f => f.Name == "FixedLength");
+            var fixedLengthFacet = (Facet)property.TypeUsage.Facets.SingleOrDefault(f => f.Name == "FixedLength");
             if (fixedLengthFacet != null && (bool)fixedLengthFacet.Value)
             {
                 configLines.Add(".IsFixedLength()");
             }
                 
-            var maxLengthFacet = (Facet)prop.TypeUsage.Facets.SingleOrDefault(f => f.Name == "MaxLength");
+            var maxLengthFacet = (Facet)property.TypeUsage.Facets.SingleOrDefault(f => f.Name == "MaxLength");
             if (maxLengthFacet != null && !maxLengthFacet.IsUnbounded)
             {
                 configLines.Add(string.Format(".HasMaxLength({0})", maxLengthFacet.Value));
@@ -113,43 +131,16 @@ namespace <#= code.EscapeNamespace(efHost.Namespace) #>
             }
         }
             
-        if(configLines.Any())
-        {
+        
 #>
-            this.Property(t => t.<#= prop.Name #>)
+            Property(t => t.<#= property.Name #>)
                 <#= string.Join("\r\n                ", configLines) #>;
 
 <#
-        }
     }
 
-    var tableSet = efHost.TableSet;
-    var tableName = (string)tableSet.MetadataProperties["Table"].Value
-        ?? tableSet.Name;
-    var schemaName = (string)tableSet.MetadataProperties["Schema"].Value;
-#>
-            // Table & Column Mappings
-<#
-    if (schemaName == "dbo" || string.IsNullOrWhiteSpace(schemaName))
-    {
-#>
-            this.ToTable("<#= tableName #>");
-<#
-    }
-    else
-    {
-#>
-            this.ToTable("<#= tableName #>", "<#= schemaName #>");
-<#
-    }
+    
 
-    foreach (var property in efHost.EntityType.Properties)
-    {
-#>
-            this.Property(t => t.<#= property.Name #>).HasColumnName("<#= efHost.PropertyToColumnMappings[property].Name #>");
-<#
-    }
-        
     // Find m:m relationshipsto configure 
     var manyManyRelationships = efHost.EntityType.NavigationProperties
         .Where(np => np.DeclaringType == efHost.EntityType
@@ -165,10 +156,6 @@ namespace <#= code.EscapeNamespace(efHost.Namespace) #>
         
     if(manyManyRelationships.Any() || fkRelationships.Any())
     {
-#>
-
-            // Relationships
-<#
         foreach (var navProperty in manyManyRelationships)
         {
             var otherNavProperty = navProperty.ToEndMember.GetEntityType().NavigationProperties.Where(n => n.RelationshipType == navProperty.RelationshipType && n != navProperty).Single();
@@ -220,13 +207,13 @@ namespace <#= code.EscapeNamespace(efHost.Namespace) #>
             if (navProperty.ToEndMember.RelationshipMultiplicity == RelationshipMultiplicity.One)
             {
 #>
-            this.HasRequired(t => t.<#= code.Escape(navProperty) #>)
+            HasRequired(t => t.<#= code.Escape(navProperty) #>)
 <#
             }
             else
             {
 #>
-            this.HasOptional(t => t.<#= code.Escape(navProperty) #>)
+            HasOptional(t => t.<#= code.Escape(navProperty) #>)
 <#
             }
                 
