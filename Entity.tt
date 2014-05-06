@@ -68,6 +68,24 @@ namespace <#= code.EscapeNamespace(efHost.Namespace) #>
 <#
         }
     }
+    
+	foreach (var navProperty in efHost.EntityType.NavigationProperties.Where(np => np.DeclaringType == efHost.EntityType))
+    {
+        if (navProperty.ToEndMember.RelationshipMultiplicity == RelationshipMultiplicity.Many)
+        {
+			var entityClassName = code.Escape(navProperty.ToEndMember.GetEntityType()) + "Eto";
+#>
+
+		public <#= entityClassName #> Create<#= entityClassName #>()
+		{
+			var entity = new <#= entityClassName #>{ <#= code.Escape(navProperty.FromEndMember.Name) #> = this };
+			<#= code.Escape(navProperty) #>.Add(entity);
+			return entity;
+		}
+<#
+        }
+    }
+
 #>
     }
 }
